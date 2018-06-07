@@ -85,6 +85,16 @@ class Sequential(Model):
         elif layer.config['type'].lower() == 'batchnorm':
             print('NOTE: Batch Normalization layer added.')
 
+        elif layer.config['type'].lower() == 'reshape':
+            print('NOTE : Reshape layer added.')
+
+        elif layer.config['type'].lower() == 'concat':
+            print('NOTE : Concatenation layer added.')
+
+        elif layer.config['type'].lower() == 'detection':
+            print('NOTE: Detection layer added.')
+            self.compile()
+
         elif layer.config['type'].lower() == 'block':
             print('NOTE: A block of layers added.')
 
@@ -134,9 +144,14 @@ class Sequential(Model):
         conv_num = 1
         fc_num = 1
         bn_num = 1
+        reshape_num = 1
+        concat_num = 1
+        detect_num = 1
         block_num = 1
 
         compiled_layers = []
+
+        output_layer = None
 
         for layer in self.layers:
             if layer.config['type'] == 'block':
@@ -153,26 +168,51 @@ class Sequential(Model):
                     if layer.name is None:
                         layer.name = 'Data'
                 else:
-                    layer.src_layers = [output_layer]
+                    # if there is not src_layers specified, its srclayers would be previous layer
+                    if layer.src_layers == None:
+                        layer.src_layers = [output_layer]
+                    # each layer is given a name
                     if layer.config['type'].lower() in ('convo', 'convolution'):
-                        if layer.name is None:
-                            layer.name = 'Conv{}_{}'.format(block_num, conv_num)
+                        layerName = 'Conv{}_{}'.format(block_num, conv_num)
+                        if layer.name is None or layer.name == layerName:
+                            layer.name = layerName
                             conv_num += 1
                     elif layer.config['type'].lower() == 'batchnorm':
-                        if layer.name is None:
-                            layer.name = 'BN{}_{}'.format(block_num, bn_num)
+                        layerName = 'BN{}_{}'.format(block_num, bn_num)
+                        if layer.name is None or layer.name == layerName:
+                            layer.name = layerName
                             bn_num += 1
                     elif layer.config['type'].lower() in ('pool', 'pooling'):
-                        if layer.name is None:
-                            layer.name = 'Pool{}'.format(block_num)
+                        layerName = 'Pool{}'.format(block_num)
+                        if layer.name is None or layer.name == layerName:
+                            layer.name = layerName
                             block_num += 1
                             conv_num = 1
+                            concat_num = 1
+                            bn_num = 1
                     elif layer.config['type'].lower() in ('fc', 'fullconnect'):
-                        if layer.name is None:
-                            layer.name = 'FC{}'.format(fc_num)
+                        layerName = 'FC{}'.format(fc_num)
+                        if layer.name is None or layer.name == layerName:
+                            layer.name = layerName
                             fc_num += 1
+                    elif layer.config['type'].lower() == 'detection':
+                        layerName = 'Detect{}'.format(detect_num)
+                        if layer.name is None or layer.name == layerName:
+                            layer.name = layerName
+                            detect_num += 1
+                    elif layer.config['type'].lower() == 'concat':
+                        layerName = 'Concat{}_{}'.format(block_num, concat_num)
+                        if layer.name is None or layer.name == layerName:
+                            layer.name = layerName
+                            concat_num += 1
+                    elif layer.config['type'].lower() == 'reshape':
+                        layerName = 'Reshape{}'.format(reshape_num)
+                        if layer.name is None or layer.name == layerName:
+                            layer.name = layerName
+                            reshape_num += 1
                     elif layer.config['type'].lower() == 'output':
-                        if layer.name is None:
+                        layerName = 'Output'
+                        if layer.name is None or layer.name == layerName:
                             layer.name = 'Output'
                     else:
                         raise ValueError('{} is not a supported layer type'.format(

@@ -26,7 +26,7 @@ import numpy as np
 import pandas as pd
 import warnings
 
-from .layers import InputLayer, Conv2d, Pooling, BN, Res, Concat, Dense, OutputLayer
+from .layers import InputLayer, Conv2d, Pooling, BN, Res, Concat, Dense, OutputLayer, DetectionLayer, Reshape
 from .utils import image_blocksize, unify_keys, input_table_check, random_name, check_caslib
 
 
@@ -167,6 +167,8 @@ class Model(object):
                 model.layers.append(extract_batchnorm_layer(layer_table=layer_table))
             elif layertype == 9:
                 model.layers.append(extract_residual_layer(layer_table=layer_table))
+            elif layertype == 10:
+                model.layers.append(extract_detection_layer(layer_table = layer_table))
         conn_mat = model_table[['_DLNumVal_', '_DLLayerID_']][
             model_table['_DLKey1_'].str.contains('srclayers')].sort_values('_DLLayerID_')
         layer_id_list = conn_mat['_DLLayerID_'].tolist()
@@ -378,6 +380,8 @@ class Model(object):
                 self.layers.append(extract_batchnorm_layer(layer_table=layer_table))
             elif layertype == 9:
                 self.layers.append(extract_residual_layer(layer_table=layer_table))
+            elif layertype == 10:
+                self.layers.append(extract_detection_layer(layer_table=layer_table))
 
         conn_mat = model_table[['_DLNumVal_', '_DLLayerID_']][
             model_table['_DLKey1_'].str.contains('srclayers')].sort_values('_DLLayerID_')
@@ -698,13 +702,21 @@ class Model(object):
 
         max_epochs = optimizer['maxepochs']
 
-        train_options = dict(model=self.model_table,
-                             table=input_tbl_opts,
-                             inputs=inputs,
-                             target=target,
-                             modelWeights=dict(replace=True,
-                                               **self.model_weights.to_table_params()),
-                             optimizer=optimizer)
+
+        if 'targetSeq' not in kwargs:
+            train_options = dict(model = self.model_table, table = input_tbl_opts,
+                                 inputs = inputs,
+                                 target = target,
+                                 modelWeights = dict(replace = True, **self.model_weights.to_table_params()),
+                                 optimizer = optimizer,
+                                 **kwargs)
+        else:
+            train_options = dict(model = self.model_table, table = input_tbl_opts,
+                                 inputs = inputs,
+                                 modelWeights = dict(replace = True, **self.model_weights.to_table_params()),
+                                 optimizer = optimizer,
+                                 **kwargs)
+
         train_options = unify_keys(train_options)
         try:
             kwargs = unify_keys(kwargs)
@@ -716,6 +728,9 @@ class Model(object):
                 list(self._retrieve_('table.tableinfo').TableInfo.Name):
             print('NOTE: Training based on existing weights.')
             train_options['initWeights'] = self.model_weights
+        elif 'initweights' in kwargs:
+            print('NOTE: Training based on user defined initial weights.')
+            train_options['initWeights'] = kwargs['initweights']
         else:
             print('NOTE: Training from scratch.')
 
@@ -958,8 +973,8 @@ class Model(object):
                              randomflip='none',
                              randomcrop='none',
                              layerImageType='jpg',
-                             encodeName=True,
-                             **kwargs)
+                             encodeName=True)
+        score_options.update(kwargs)
         self._retrieve_('deeplearn.dlscore', **score_options)
         layer_out_jpg = self.conn.CASTable(feature_maps_tbl)
         feature_maps_names = [i for i in layer_out_jpg.columninfo().ColumnInfo.Column]
@@ -1009,8 +1024,9 @@ class Model(object):
                              layerImageType='wide',
                              randomflip='none',
                              randomcrop='none',
-                             encodeName=True,
-                             **kwargs)
+                             encodeName=True)
+
+        score_options.update(kwargs)
         self._retrieve_('deeplearn.dlscore', **score_options)
         x = self.conn.CASTable(feature_tbl).as_matrix()
         y = self.conn.CASTable(**input_tbl_opts)[target].as_matrix().ravel()
@@ -1921,6 +1937,15 @@ def extract_concatenate_layer(layer_table):
     concat_layer_config['name'] = layer_table['_DLKey0_'].unique()[0]
 
     layer = Concat(**concat_layer_config)
+    return layer
+
+
+def extract_detection_layer(layer_table):
+    detection_layer_config = dict()
+
+    detection_layer_config['name'] = layer_table['_DLKey0_'].unique()[0]
+
+    layer = DetectionLayer(**detection_layer_config)
     return layer
 
 

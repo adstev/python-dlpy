@@ -60,20 +60,7 @@ class Layer(object):
         self.num_weights = None
         self.num_bias = None
 
-    def to_model_params(self):
-        '''
-        Convert the model configuration to SAS Viya parameters
 
-        Returns
-        -------
-        dict
-
-        '''
-        if self.config['type'].lower() == 'input':
-            return dict(name=self.name, layer=self.config)
-        else:
-            return dict(name=self.name, layer=self.config,
-                        srclayers=[item.name for item in self.src_layers])
 
     @property
     def summary_str(self):
@@ -120,7 +107,7 @@ class Layer(object):
         elif self.config['type'].lower() == 'batchnorm':
             self.output_size = self.src_layers[0].output_size
             self.kernel_size = None
-            self.num_weights = 0
+            self.num_weights = int(2 * self.src_layers[0].output_size[2])
             self.num_bias = int(2 * self.src_layers[0].output_size[2])
 
         elif self.config['type'].lower() == 'residual':
@@ -139,6 +126,14 @@ class Layer(object):
                                 int(self.src_layers[0].output_size[1]),
                                 int(sum([item.output_size[2]
                                          for item in self.src_layers])))
+            self.kernel_size = None
+            self.num_weights = 0
+            self.num_bias = 0
+
+        elif self.config['type'].lower() == 'reshape':
+            self.output_size = (int(self.config['width']),
+                                int(self.config['height']),
+                                int(self.config['depth']))
             self.kernel_size = None
             self.num_weights = 0
             self.num_bias = 0
@@ -193,6 +188,20 @@ class Layer(object):
 
         return col1 + col2 + col3 + col4 + col5 + col6
 
+    def to_model_params(self):
+        '''
+        Convert the model configuration to SAS Viya parameters
+
+        Returns
+        -------
+        dict
+
+        '''
+        if self.config['type'].lower() == 'input':
+            return dict(name=self.name, layer=self.config)
+        else:
+            return dict(name=self.name, layer=self.config,
+                        srclayers=[item.name for item in self.src_layers])
 
 class InputLayer(Layer):
     '''
@@ -480,6 +489,34 @@ class Concat(Layer):
         self.type_name = 'Concat.'
 
 
+class Reshape(Layer):
+    '''
+    Resize layer
+
+    Parameters
+    ----------
+    act : str
+        Specifies the activation types.
+    name : str
+        Specifies the name of the layer.
+    src_layers : iter-of-Layers, optional
+        Specifies the source layer(s).
+
+    Returns
+    -------
+    :class:`Resize`
+
+    '''
+
+    def __init__(self, act='AUTO', name=None, src_layers=None, **kwargs):
+        config = locals()
+        config = _unpack_config(config)
+        config['type'] = 'reshape'
+        Layer.__init__(self, name, config, src_layers)
+        self.color_code = '#33DE14'
+        self.type_name = 'Reshape.'
+
+
 class Proj(Layer):
     '''
     Projection layer
@@ -505,6 +542,18 @@ class Proj(Layer):
         self.color_code = '#FFA2A3'
         self.type_name = 'Proj.'
 
+
+class DetectionLayer(Layer):
+    '''
+    TODO
+    '''
+    def __init__(self, name=None, src_layers=None, **kwargs):
+        config = locals()
+        config = _unpack_config(config)
+        config['type'] = 'detection'
+        Layer.__init__(self, name, config, src_layers)
+        self.color_code = '#7B2A9E'
+        self.type_name = 'Detect.'
 
 class OutputLayer(Layer):
     '''

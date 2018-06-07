@@ -25,7 +25,7 @@ from .Sequential import Sequential
 from .blocks import ResBlockBN, ResBlock_Caffe, DenseNetBlock
 from .caffe_models import (model_vgg16, model_vgg19, model_resnet50,
                            model_resnet101, model_resnet152)
-from .layers import (InputLayer, Conv2d, Pooling, Dense, BN, OutputLayer)
+from .layers import (InputLayer, Conv2d, Pooling, Dense, BN, OutputLayer, DetectionLayer, Concat, Reshape)
 from .model import Model
 from .utils import random_name
 
@@ -664,9 +664,9 @@ def VGG16(conn, model_table='VGG16',
         model.add(Conv2d(n_filters=512, width=3, height=3, stride=1))
         model.add(Pooling(width=2, height=2, stride=2, pool='max'))
 
-        model.add(Dense(n=4096, dropout=0.5))
-        model.add(Dense(n=4096, dropout=0.5))
-        model.add(OutputLayer(n=n_classes))
+        model.add(Dense(n=4096, dropout=0.5, name='fc6'))
+        model.add(Dense(n=4096, dropout=0.5, name='fc7'))
+        model.add(OutputLayer(n=n_classes, name='fc8'))
 
         return model
 
@@ -1202,6 +1202,8 @@ def ResNet18_SAS(conn, model_table='RESNET18_SAS', batch_norm_first=True,
             model.add(ResBlockBN(kernel_sizes=kernel_sizes, n_filters=n_filters,
                                  strides=strides, batch_norm_first=batch_norm_first))
 
+    model.add(BN(act='relu'))
+
     # Bottom Layers
     pooling_size = (width // 2 // 2 // 2 // 2 // 2, height // 2 // 2 // 2 // 2 // 2)
     model.add(Pooling(width=pooling_size[0], height=pooling_size[1], pool='mean'))
@@ -1213,7 +1215,7 @@ def ResNet18_SAS(conn, model_table='RESNET18_SAS', batch_norm_first=True,
 
 def ResNet18_Caffe(conn, model_table='RESNET18_CAFFE', batch_norm_first=False,
                    n_classes=1000, n_channels=3, width=224, height=224, scale=1,
-                   random_flip='none', random_crop='none', offsets=None):
+                   random_flip='none', random_crop='none', offsets=(100.98,114.16,120.15)):
     '''
     Generate a deep learning model with ResNet18 architecture with convolution shortcut
 
@@ -1402,6 +1404,8 @@ def ResNet34_SAS(conn, model_table='RESNET34_SAS', batch_norm_first=True,
             model.add(ResBlockBN(kernel_sizes=kernel_sizes, n_filters=n_filters,
                                  strides=strides, batch_norm_first=batch_norm_first))
 
+    model.add(BN(act='relu'))
+
     # Bottom Layers
     pooling_size = (width // 2 // 2 // 2 // 2 // 2, height // 2 // 2 // 2 // 2 // 2)
     model.add(Pooling(width=pooling_size[0], height=pooling_size[1], pool='mean'))
@@ -1413,7 +1417,7 @@ def ResNet34_SAS(conn, model_table='RESNET34_SAS', batch_norm_first=True,
 
 def ResNet34_Caffe(conn, model_table='RESNET34_CAFFE', batch_norm_first=False,
                    n_classes=1000, n_channels=3, width=224, height=224, scale=1,
-                   random_flip='none', random_crop='none', offsets=None):
+                   random_flip='none', random_crop='none', offsets=(100.98,114.16,120.15)):
     '''
     Generate deep learning model with ResNet34 architecture with convolution shortcut
 
@@ -1520,7 +1524,106 @@ def ResNet34_Caffe(conn, model_table='RESNET34_CAFFE', batch_norm_first=False,
     return model
 
 
-def ResNet50_SAS(conn, model_table='RESNET50_SAS', batch_norm_first=True,
+def ResNet50(conn, model_name='RESNET50_SAS', batch_norm_first=True,
+                 n_classes=1000, n_channels=3, width=224, height=224, scale=1,
+                 random_flip='none', random_crop='none',
+                 offsets=(103.939, 116.779, 123.68)):
+    '''
+    Generate a deep learning model with ResNet50 architecture
+
+    Parameters
+    ----------
+    conn : CAS
+        Specifies the CAS connection object
+    model_name : string, optional
+        Specifies the name of CAS table to store the model in
+    batch_norm_first : boolean, optional
+        Specifies whether to have batch normalization layer before the
+        convolution layer in the residual block.  For a detailed discussion
+        about this, please refer to this paper: He, Kaiming, et al. "Identity
+        mappings in deep residual networks." European Conference on Computer
+        Vision. Springer International Publishing, 2016.
+        Default: True
+    n_classes : int, optional
+        Specifies the number of classes. If None is assigned, the model will
+        automatically detect the number of classes based on the training set.
+        Default: 1000
+    n_channels : int, optional
+        Specifies the number of the channels of the input layer
+        Default: 3
+    width : int, optional
+        Specifies the width of the input layer
+        Default: 224
+    height : int, optional
+        Specifies the height of the input layer
+        Default: 224
+    scale : double, optional
+        Specifies a scaling factor to apply to each image
+        Default: 1
+    random_flip : string, optional
+        Specifies how to flip the data in the input layer when image data is
+        used. Approximately half of the input data is subject to flipping.
+        Valid Values: 'h', 'hv', 'none', 'v'
+        Default: 'hv'
+    random_crop : string, optional
+        Specifies how to crop the data in the input layer when image data is
+        used. Images are cropped to the values that are specified in the width
+        and height parameters. Only the images with one or both dimensions
+        that are larger than those sizes are cropped.
+        Valid Values: 'none' or 'unique'
+        Default: 'unique'
+    offsets : double or list-of-doubles, optional
+        Specifies an offset for each channel in the input data. The final
+        input data is set after applying scaling and subtracting the
+        specified offsets.
+    Default: (103.939, 116.779, 123.68)
+
+    Returns
+    -------
+    :class:`Sequential`
+
+    '''
+    conn.retrieve('loadactionset', _messagelevel='error', actionset='deeplearn')
+
+    model = Sequential(conn=conn, model_name=model_name)
+
+    model.add(InputLayer(n_channels=n_channels, width=width, height=height,
+                         scale=scale, offsets=offsets, random_flip=random_flip,
+                         random_crop=random_crop))
+    # Top layers
+    model.add(Conv2d(64, 7, act='identity', includeBias=False, stride=2))
+    model.add(BN(act='relu'))
+    model.add(Pooling(width=3, stride=2))
+
+    kernel_sizes_list = [(1, 3, 1)] * 4
+    n_filters_list = [(64, 64, 256), (128, 128, 512), (256, 256, 1024), (512, 512, 2048)]
+    rep_nums_list = [3, 4, 6, 3]
+
+    for i in range(4):
+        kernel_sizes = kernel_sizes_list[i]
+        n_filters = n_filters_list[i]
+        for rep_num in range(rep_nums_list[i]):
+            if i == 0:
+                strides = 1
+            else:
+                if rep_num == 0:
+                    strides = 2
+                else:
+                    strides = 1
+
+            model.add(ResBlockBN(kernel_sizes=kernel_sizes, n_filters=n_filters,
+                                 strides=strides, batch_norm_first=batch_norm_first))
+
+    # Bottom Layers
+    pooling_size = (width // 2 // 2 // 2 // 2 // 2, height // 2 // 2 // 2 // 2 // 2)
+    model.add(Pooling(width=pooling_size[0], height=pooling_size[1], pool='mean'))
+
+    model.add(OutputLayer(act='softmax', n=n_classes))
+
+    return model
+
+
+def ResNet50_SAS(conn, model_name='RESNET50_SAS', batch_norm_first=True,
                  n_classes=1000, n_channels=3, width=224, height=224, scale=1,
                  random_flip='none', random_crop='none',
                  offsets=(103.939, 116.779, 123.68)):
@@ -1609,6 +1712,8 @@ def ResNet50_SAS(conn, model_table='RESNET50_SAS', batch_norm_first=True,
 
             model.add(ResBlockBN(kernel_sizes=kernel_sizes, n_filters=n_filters,
                                  strides=strides, batch_norm_first=batch_norm_first))
+
+    model.add(BN(act='relu'))
 
     # Bottom Layers
     pooling_size = (width // 2 // 2 // 2 // 2 // 2, height // 2 // 2 // 2 // 2 // 2)
@@ -1873,7 +1978,7 @@ def ResNet101_SAS(conn, model_table='RESNET101_SAS', batch_norm_first=True,
 
             model.add(ResBlockBN(kernel_sizes=kernel_sizes, n_filters=n_filters,
                                  strides=strides, batch_norm_first=batch_norm_first))
-
+    model.add(BN(act='relu'))
     # Bottom Layers
     pooling_size = (width // 2 // 2 // 2 // 2 // 2, height // 2 // 2 // 2 // 2 // 2)
     model.add(Pooling(width=pooling_size[0], height=pooling_size[1], pool='mean'))
@@ -2137,7 +2242,7 @@ def ResNet152_SAS(conn, model_table='RESNET152_SAS', batch_norm_first=True,
 
             model.add(ResBlockBN(kernel_sizes=kernel_sizes, n_filters=n_filters,
                                  strides=strides, batch_norm_first=batch_norm_first))
-
+    model.add(BN(act='relu'))
     # Bottom Layers
     pooling_size = (width // 2 // 2 // 2 // 2 // 2,
                     height // 2 // 2 // 2 // 2 // 2)
@@ -2509,4 +2614,1216 @@ def DenseNet_Cifar(conn, model_table='DenseNet_Cifar', n_classes=None, conv_chan
 
     model.add(OutputLayer(act='softmax', n=n_classes))
 
+    return model
+
+
+def DenseNet121(conn, model_name='DENSENET121', n_classes=1000, conv_channel=64, growth_rate=32,
+                n_cells=[6, 12, 24, 16], n_channels=3,
+                reduction=0.5,
+                width=224, height=224, scale=1,
+                random_flip='none', random_crop='none', offsets=(100.98, 114.16, 120.15)):
+    '''
+    Generate a deep learning model with DenseNet architecture
+
+    Parameters
+    ----------
+    conn :
+        Specifies the connection of the CAS connection.
+    model_name : string
+        Specifies the name of CAS table to store the model.
+    n_classes : int, optional.
+        Specifies the number of classes. If None is assigned, the model will
+        automatically detect the number of classes based on the training set.
+        Default: None
+    conv_channel: int, optional.
+        Specifies the number of filters of first convolution layer.
+        Default : 16
+    growth_rate: int, optional.
+        Specifies growth rate of convolution layer.
+        Default : 12
+    n_cells : int, optional.
+        Specifies the number of densely connection in each DenseNetBlock
+        Default : 4
+    n_channels : double, optional.
+        Specifies the number of the channels of the input layer.
+        Default : 3.
+    width : double, optional.
+        Specifies the width of the input layer.
+        Default : 224.
+    height : double, optional.
+        Specifies the height of the input layer.
+        Default : 224.
+    scale : double, optional.
+        Specifies a scaling factor to apply to each image..
+        Default : 1.
+    random_flip : string, "h" | "hv" | "none" | "v"
+        Specifies how to flip the data in the input layer when image data is
+        used. Approximately half of the input data is subject to flipping.
+        Default	: "hv"
+    random_crop : string, "none" or "unique"
+        Specifies how to crop the data in the input layer when image data is
+        used. Images are cropped to the values that are specified in the width
+        and height parameters. Only the images with one or both dimensions that
+        are larger than those sizes are cropped.
+        Default	: "unique"
+    offsets=(double-1 <, double-2, ...>), optional
+        Specifies an offset for each channel in the input data. The final input
+        data is set after applying scaling and subtracting the specified offsets.
+        Default : (85, 111, 139)
+
+    Returns
+    -------
+    :class:`Sequential`
+        A model object using DenseNet_Cifar architecture.
+
+    '''
+    n_blocks = len(n_cells)
+
+    model = Sequential(conn=conn, model_name=model_name)
+
+    model.add(InputLayer(n_channels=n_channels, width=width, height=height,  # TODO
+                         scale=scale, random_flip=random_flip, offsets=offsets,
+                         random_crop=random_crop))
+    # Top layers
+    model.add(Conv2d(conv_channel, width=7, act='identity', includeBias=False, stride=2))
+    model.add(BN(act='relu'))
+    srcLayer = Pooling(width=3, height=3, stride=2, padding=1, pool='max')
+    model.add(srcLayer)
+
+    for i in range(n_blocks):
+        for _ in range(n_cells[i]):
+            model.add(BN(act='relu'))
+            model.add(Conv2d(n_filters=growth_rate * 4,
+                             width=1,
+                             act='identity',
+                             stride=1,
+                             includeBias=False))
+            model.add(BN(act='relu'))
+            srcLayer2 = Conv2d(n_filters=growth_rate,
+                               width=3,
+                               act='identity',
+                               stride=1,
+                               includeBias=False)
+            model.add(srcLayer2)
+            srcLayer = Concat(act='identity', src_layers=[srcLayer, srcLayer2])
+            model.add(srcLayer)
+
+            conv_channel += growth_rate
+        if i != (n_blocks - 1):
+            # transition block
+            model.add(BN(act='relu'))
+            conv_channel = int(conv_channel * reduction)
+            model.add(Conv2d(n_filters=conv_channel,
+                             width=1,
+                             act='identity',
+                             stride=1,
+                             includeBias=False))
+            srcLayer = Pooling(width=2, height=2, stride=2, pool='mean')
+            model.add(srcLayer)
+
+    model.add(BN(act='identity'))
+    # Bottom Layers
+    pooling_size = (7, 7)
+    model.add(Pooling(width=pooling_size[0], height=pooling_size[1], pool='mean'))
+
+    model.add(OutputLayer(act='softmax', n=n_classes))
+
+    return model
+
+
+'''Below are Object detection feature'''
+
+
+def Darknet_Reference(conn, model_name='Darknet_Reference', n_classes=1000, actx='leaky',
+                      n_channels=3, width=224, height=224, scale=1.0 / 255,
+                      random_flip='H', random_crop='UNIQUE'):
+    '''
+      Function to generate a deep learning model with Darknet_Reference architecture.
+
+      Parameters:
+
+      ----------
+      conn :
+          Specifies the connection of the CAS connection.
+      model_name : string
+          Specifies the name of CAS table to store the model.
+      n_classes : int, optional.
+          Specifies the number of classes. If None is assigned, the model will automatically detect the number of
+          classes based on the training set.
+          Default: None
+      conv_channel: int, optional.
+      		Specifies the number of filters of first convolutional layer.
+      		Default : 16
+      growth_rate: int, optional.
+      		Specifies growth rate of convolutional layer.
+      		Default : 12
+      n_blocks : int, optional.
+      		Specifies the number of DenseNetBlocks.
+      		Default : 4
+      n_cells : int, optional.
+      		Specifies the number of densely connection in each DenseNetBlock
+      		Default : 4
+      n_channels : double, optional.
+          Specifies the number of the channels of the input layer.
+          Default : 3.
+      width : double, optional.
+          Specifies the width of the input layer.
+          Default : 224.
+      height : double, optional.
+          Specifies the height of the input layer.
+          Default : 224.
+      scale : double, optional.
+          Specifies a scaling factor to apply to each image..
+          Default : 1.
+      random_flip : string, "H" | "HV" | "NONE" | "V"
+          Specifies how to flip the data in the input layer when image data is used. Approximately half of the input data
+          is subject to flipping.
+          Default	: "HV"
+      random_crop : string, "NONE" or "UNIQUE"
+          Specifies how to crop the data in the input layer when image data is used. Images are cropped to the values that
+           are specified in the width and height parameters. Only the images with one or both dimensions that are larger
+           than those sizes are cropped.
+          Default	: "UNIQUE"
+      offsets=(double-1 <, double-2, ...>), optional
+          Specifies an offset for each channel in the input data. The final input data is set after applying scaling and
+          subtracting the specified offsets.
+      Default : (85, 111, 139)
+
+      Returns
+      -------
+      A model object using Darknet_Reference architecture.
+
+      '''
+
+    model = Sequential(conn=conn, model_name=model_name)
+
+    model.add(InputLayer(n_channels=n_channels, width=width, height=height,
+                         scale=scale, random_flip=random_flip,
+                         random_crop=random_crop))
+    # conv1 224
+    model.add(Conv2d(16, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv2 112
+    model.add(Conv2d(32, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv3 56
+    model.add(Conv2d(64, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv4 28
+    model.add(Conv2d(128, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv5 14
+    model.add(Conv2d(256, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv6 7
+    model.add(Conv2d(512, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    model.add(Pooling(width=2, height=2, stride=1, pool='max'))
+    # conv7 7
+    model.add(Conv2d(1024, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv8 7
+    model.add(Conv2d(1000, width=1, act=actx, includeBias=True, stride=1))
+
+    model.add(Pooling(width=7, height=7, pool='mean'))
+    model.add(OutputLayer(act='softmax', n=n_classes))
+
+    return model
+
+
+def Darknet(conn, model_name='Darknet', n_classes=1000, actx='leaky',
+            n_channels=3, width=224, height=224, scale=1.0 / 255,
+            random_flip='H', random_crop='UNIQUE'):
+    '''
+      Function to generate a deep learning model with Darknet architecture.
+
+      Parameters:
+
+      ----------
+      conn :
+          Specifies the connection of the CAS connection.
+      model_name : string
+          Specifies the name of CAS table to store the model.
+      n_classes : int, optional.
+          Specifies the number of classes. If None is assigned, the model will automatically detect the number of
+          classes based on the training set.
+          Default: None
+      conv_channel: int, optional.
+      		Specifies the number of filters of first convolutional layer.
+      		Default : 16
+      growth_rate: int, optional.
+      		Specifies growth rate of convolutional layer.
+      		Default : 12
+      n_blocks : int, optional.
+      		Specifies the number of DenseNetBlocks.
+      		Default : 4
+      n_cells : int, optional.
+      		Specifies the number of densely connection in each DenseNetBlock
+      		Default : 4
+      n_channels : double, optional.
+          Specifies the number of the channels of the input layer.
+          Default : 3.
+      width : double, optional.
+          Specifies the width of the input layer.
+          Default : 224.
+      height : double, optional.
+          Specifies the height of the input layer.
+          Default : 224.
+      scale : double, optional.
+          Specifies a scaling factor to apply to each image..
+          Default : 1.
+      random_flip : string, "H" | "HV" | "NONE" | "V"
+          Specifies how to flip the data in the input layer when image data is used. Approximately half of the input data
+          is subject to flipping.
+          Default	: "HV"
+      random_crop : string, "NONE" or "UNIQUE"
+          Specifies how to crop the data in the input layer when image data is used. Images are cropped to the values that
+           are specified in the width and height parameters. Only the images with one or both dimensions that are larger
+           than those sizes are cropped.
+          Default	: "UNIQUE"
+      offsets=(double-1 <, double-2, ...>), optional
+          Specifies an offset for each channel in the input data. The final input data is set after applying scaling and
+          subtracting the specified offsets.
+      Default : (85, 111, 139)
+
+      Returns
+      -------
+      A model object using DarkNet architecture.
+
+      '''
+
+    model = Sequential(conn=conn, model_name=model_name)
+
+    model.add(InputLayer(n_channels=n_channels, width=width, height=height,
+                         scale=scale, random_flip=random_flip,
+                         random_crop=random_crop))
+    # conv1 224 416
+    model.add(Conv2d(32, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv2 112 208
+    model.add(Conv2d(64, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv3 56 104
+    model.add(Conv2d(128, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv4 56 104
+    model.add(Conv2d(64, width=1, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv5 56 104
+    model.add(Conv2d(128, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv6 28 52
+    model.add(Conv2d(256, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv7 28 52
+    model.add(Conv2d(128, width=1, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv8 28 52
+    model.add(Conv2d(256, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv9 14 26
+    model.add(Conv2d(512, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv10 14 26
+    model.add(Conv2d(256, width=1, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv11 14 26
+    model.add(Conv2d(512, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv12 14 26
+    model.add(Conv2d(256, width=1, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv13 14 26
+    model.add(Conv2d(512, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))  # route
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv14 7 13
+    model.add(Conv2d(1024, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv15 7 13
+    model.add(Conv2d(512, width=1, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv16 7 13
+    model.add(Conv2d(1024, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv17 7 13
+    model.add(Conv2d(512, width=1, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv18 7 13
+    model.add(Conv2d(1024, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv19 7 13
+    model.add(Conv2d(1000, width=1, act=actx, includeBias=True, stride=1))
+    # model.add(BN(act = actx))
+
+    model.add(Pooling(width=7, height=7, pool='mean'))
+    model.add(OutputLayer(act='softmax', n=n_classes))
+    return model
+
+
+def YoloV1BN(conn, model_name='Yolov1BN', n_channels=3, width=448, height=448, scale=1.0 / 255,
+             n_classes=10, randomMutation='random',
+             detAct='identity', actx='leaky', dropout=0,
+             predictionsPerGrid=2, gridNumber=7, **kwargs):
+    '''
+      Function to generate a deep learning model with Darknet architecture.
+
+      Parameters:
+
+      ----------
+      conn :
+          Specifies the connection of the CAS connection.
+      model_name : string
+          Specifies the name of CAS table to store the model.
+      n_classes : int, optional.
+          Specifies the number of classes. If None is assigned, the model will automatically detect the number of
+          classes based on the training set.
+          Default: None
+      conv_channel: int, optional.
+      		Specifies the number of filters of first convolutional layer.
+      		Default : 16
+      growth_rate: int, optional.
+      		Specifies growth rate of convolutional layer.
+      		Default : 12
+      n_blocks : int, optional.
+      		Specifies the number of DenseNetBlocks.
+      		Default : 4
+      n_cells : int, optional.
+      		Specifies the number of densely connection in each DenseNetBlock
+      		Default : 4
+      n_channels : double, optional.
+          Specifies the number of the channels of the input layer.
+          Default : 3.
+      width : double, optional.
+          Specifies the width of the input layer.
+          Default : 448.
+      height : double, optional.
+          Specifies the height of the input layer.
+          Default : 448.
+      scale : double, optional.
+          Specifies a scaling factor to apply to each image..
+          Default : 1.
+      random_flip : string, "H" | "HV" | "NONE" | "V"
+          Specifies how to flip the data in the input layer when image data is used. Approximately half of the input data
+          is subject to flipping.
+          Default	: "HV"
+      random_crop : string, "NONE" or "UNIQUE"
+          Specifies how to crop the data in the input layer when image data is used. Images are cropped to the values that
+           are specified in the width and height parameters. Only the images with one or both dimensions that are larger
+           than those sizes are cropped.
+          Default	: "UNIQUE"
+      offsets=(double-1 <, double-2, ...>), optional
+          Specifies an offset for each channel in the input data. The final input data is set after applying scaling and
+          subtracting the specified offsets.
+      Default : (85, 111, 139)
+
+      Returns
+      -------
+      A model object using DarkNet architecture.
+
+      '''
+
+    model = Sequential(conn=conn, model_name=model_name)
+
+    model.add(InputLayer(n_channels=n_channels, width=width, height=height, randomMutation=randomMutation,
+                         scale=scale))
+    # conv1 448
+    model.add(Conv2d(32, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv2 224
+    model.add(Conv2d(64, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv3 112
+    model.add(Conv2d(128, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv4 112
+    model.add(Conv2d(64, width=1, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv5 112
+    model.add(Conv2d(128, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv6 56
+    model.add(Conv2d(256, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv7 56
+    model.add(Conv2d(128, width=1, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv8 56
+    model.add(Conv2d(256, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv9 28
+    model.add(Conv2d(512, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv10 28
+    model.add(Conv2d(256, width=1, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv11 28
+    model.add(Conv2d(512, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv12 28
+    model.add(Conv2d(256, width=1, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv13 28
+    model.add(Conv2d(512, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv14 14
+    model.add(Conv2d(1024, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv15 14
+    model.add(Conv2d(512, width=1, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv16 14
+    model.add(Conv2d(1024, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv17 14
+    model.add(Conv2d(512, width=1, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv18 14
+    model.add(Conv2d(1024, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+
+    # conv19 14
+    model.add(Conv2d(1024, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv20 7
+    model.add(Conv2d(1024, width=3, act='identity', includeBias=False, stride=2))
+    model.add(BN(act=actx))
+    # conv21 7
+    model.add(Conv2d(1024, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv22 7
+    model.add(Conv2d(1024, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv23 7
+    model.add(Conv2d(256, width=3, act=actx, includeBias=False, stride=1, dropout=dropout))
+    # model.add(BN(act = actx))
+    # model.add(Dense(n = 4096, act = actx))
+    model.add(Dense(n=(n_classes + (5 * predictionsPerGrid)) * gridNumber * gridNumber, act=detAct))
+
+    model.add(DetectionLayer(detectionModelType='yolov1', classNumber=n_classes, gridNumber=gridNumber,
+                             predictionsPerGrid=predictionsPerGrid,
+                             **kwargs))
+
+    return model
+
+
+def Yolov2(conn, model_name='Yolov2', n_channels=3, width=416, height=416, scale=1.0 / 255,
+           actx='leaky',
+           randomMutation='random',
+           n_classes=20, predictionsPerGrid=5, gridNumber=13, **kwargs):
+    '''
+      Function to generate a deep learning model with Tiny Yolov2 architecture.
+
+      Parameters:
+
+      ----------
+      conn :
+          Specifies the connection of the CAS connection.
+      model_name : string
+          Specifies the name of CAS table to store the model.
+      n_classes : int, optional.
+          Specifies the number of classes. If None is assigned, the model will automatically detect the number of
+          classes based on the training set.
+          Default: None
+      predictionsPerGrid: int, optional.
+      		Specifies the number of bounding boxes per grid.
+      		Default : 2
+      gridNumber: int, optional.
+      		Specifies the number of grids the images divided into
+      n_channels : double, optional.
+          Specifies the number of the channels of the input layer.
+          Default : 3.
+      width : double, optional.
+          Specifies the width of the input layer.
+          Default : 416.
+      height : double, optional.
+          Specifies the height of the input layer.
+          Default : 416.
+      scale : double, optional.
+          Specifies a scaling factor to apply to each image..
+          Default : 1.0/255.
+
+      Returns
+      -------
+      A model object using DenseNet_Cifar architecture.
+
+      '''
+
+    model = Sequential(conn=conn, model_name=model_name)
+
+    model.add(InputLayer(n_channels=n_channels, width=width, height=height, randomMutation=randomMutation,
+                         scale=scale))
+
+    # conv1 224 416
+    model.add(Conv2d(32, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv2 112 208
+    model.add(Conv2d(64, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv3 56 104
+    model.add(Conv2d(128, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv4 56 104
+    model.add(Conv2d(64, width=1, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv5 56 104
+    model.add(Conv2d(128, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv6 28 52
+    model.add(Conv2d(256, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv7 28 52
+    model.add(Conv2d(128, width=1, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv8 28 52
+    model.add(Conv2d(256, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv9 14 26
+    model.add(Conv2d(512, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv10 14 26
+    model.add(Conv2d(256, width=1, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv11 14 26
+    model.add(Conv2d(512, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv12 14 26
+    model.add(Conv2d(256, width=1, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv13 14 26
+    model.add(Conv2d(512, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv14 7 13
+    model.add(Conv2d(1024, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv15 7 13
+    model.add(Conv2d(512, width=1, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv16 7 13
+    model.add(Conv2d(1024, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv17 7 13
+    model.add(Conv2d(512, width=1, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv18 7 13
+    model.add(Conv2d(1024, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+
+    model.add(
+        Conv2d((n_classes + 5) * predictionsPerGrid, width=1, act='identity', includeBias=False, stride=1))
+
+    model.add(DetectionLayer(detectionModelType='yolov2', classNumber=n_classes, gridNumber=gridNumber,
+                             predictionsPerGrid=predictionsPerGrid, **kwargs))
+
+    return model
+
+
+def Yolov2MultiSize(conn, model_name='Yolov2', n_channels=3, width=416, height=416, scale=1.0 / 255,
+                    actx='leaky',
+                    randomMutation='random',
+                    n_classes=20, predictionsPerGrid=5, gridNumber=13, **kwargs):
+    '''
+      Function to generate a deep learning model with Tiny Yolov2 architecture.
+
+      Parameters:
+
+      ----------
+      conn :
+          Specifies the connection of the CAS connection.
+      model_name : string
+          Specifies the name of CAS table to store the model.
+      n_classes : int, optional.
+          Specifies the number of classes. If None is assigned, the model will automatically detect the number of
+          classes based on the training set.
+          Default: None
+      predictionsPerGrid: int, optional.
+      		Specifies the number of bounding boxes per grid.
+      		Default : 2
+      gridNumber: int, optional.
+      		Specifies the number of grids the images divided into
+      n_channels : double, optional.
+          Specifies the number of the channels of the input layer.
+          Default : 3.
+      width : double, optional.
+          Specifies the width of the input layer.
+          Default : 416.
+      height : double, optional.
+          Specifies the height of the input layer.
+          Default : 416.
+      scale : double, optional.
+          Specifies a scaling factor to apply to each image..
+          Default : 1.0/255.
+
+      Returns
+      -------
+      A model object using DenseNet_Cifar architecture.
+
+      '''
+
+    model = Sequential(conn=conn, model_name=model_name)
+
+    model.add(InputLayer(n_channels=n_channels, width=width, height=height, randomMutation=randomMutation,
+                         scale=scale))
+
+    # conv1 224 416
+    model.add(Conv2d(32, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv2 112 208
+    model.add(Conv2d(64, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv3 56 104
+    model.add(Conv2d(128, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv4 56 104
+    model.add(Conv2d(64, width=1, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv5 56 104
+    model.add(Conv2d(128, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv6 28 52
+    model.add(Conv2d(256, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv7 28 52
+    model.add(Conv2d(128, width=1, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv8 28 52
+    model.add(Conv2d(256, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv9 14 26
+    model.add(Conv2d(512, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv10 14 26
+    model.add(Conv2d(256, width=1, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv11 14 26
+    model.add(Conv2d(512, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv12 14 26
+    model.add(Conv2d(256, width=1, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv13 14 26
+    model.add(Conv2d(512, width=3, act='identity', includeBias=False, stride=1))
+    pointLayer1 = BN(act=actx, name='BN5_13')
+    model.add(pointLayer1)
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv14 7 13
+    model.add(Conv2d(1024, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv15 7 13
+    model.add(Conv2d(512, width=1, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv16 7 13
+    model.add(Conv2d(1024, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv17 7 13
+    model.add(Conv2d(512, width=1, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv18 7 13
+    model.add(Conv2d(1024, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+
+    # conv19 7 13
+    model.add(Conv2d(1024, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx, name='BN6_19'))
+    # conv20 7 13
+    model.add(Conv2d(1024, width=3, act='identity', includeBias=False, stride=1))
+    pointLayer2 = BN(act=actx, name='BN6_20')
+    model.add(pointLayer2)
+
+    # conv21 7 26 * 26 * 512 -> 26 * 26 * 64
+    model.add(Conv2d(64, width=1, act='identity', includeBias=False, stride=1, src_layers=[pointLayer1]))
+    model.add(BN(act=actx))
+    # reshape 26 * 26 * 64 -> 13 * 13 * 256
+    pointLayer3 = Reshape(act='identity', width=13, height=13, depth=256, name='reshape1')
+    model.add(pointLayer3)
+
+    # concat
+    model.add(Concat(act='identity', src_layers=[pointLayer2, pointLayer3]))
+
+    # conv22 7 13
+    model.add(Conv2d(1024, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+
+    model.add(
+        Conv2d((n_classes + 5) * predictionsPerGrid, width=1, act='identity', includeBias=False, stride=1))
+
+    model.add(DetectionLayer(detectionModelType='yolov2', classNumber=n_classes, gridNumber=gridNumber,
+                             predictionsPerGrid=predictionsPerGrid, **kwargs))
+
+    return model
+
+
+def Tiny_Yolov2(conn, model_name='Tiny-Yolov2', n_channels=3, width=416, height=416, scale=1.0 / 255,
+                actx='leaky',
+                randomMutation='random',
+                n_classes=20, predictionsPerGrid=5, gridNumber=13, **kwargs):
+    '''
+      Function to generate a deep learning model with Tiny Yolov2 architecture.
+
+      Parameters:
+
+      ----------
+      conn :
+          Specifies the connection of the CAS connection.
+      model_name : string
+          Specifies the name of CAS table to store the model.
+      n_classes : int, optional.
+          Specifies the number of classes. If None is assigned, the model will automatically detect the number of
+          classes based on the training set.
+          Default: None
+      predictionsPerGrid: int, optional.
+      		Specifies the number of bounding boxes per grid.
+      		Default : 2
+      gridNumber: int, optional.
+      		Specifies the number of grids the images divided into
+      n_channels : double, optional.
+          Specifies the number of the channels of the input layer.
+          Default : 3.
+      width : double, optional.
+          Specifies the width of the input layer.
+          Default : 416.
+      height : double, optional.
+          Specifies the height of the input layer.
+          Default : 416.
+      scale : double, optional.
+          Specifies a scaling factor to apply to each image..
+          Default : 1.0/255.
+
+      Returns
+      -------
+      A model object using DenseNet_Cifar architecture.
+
+      '''
+
+    model = Sequential(conn=conn, model_name=model_name)
+
+    model.add(InputLayer(n_channels=n_channels, width=width, height=height, randomMutation=randomMutation,
+                         scale=scale))
+    # conv1 416 448
+    model.add(Conv2d(16, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv2 208 224
+    model.add(Conv2d(32, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv3 104 112
+    model.add(Conv2d(64, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv4 52 56
+    model.add(Conv2d(128, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv5 26 28
+    model.add(Conv2d(256, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv6 13 14
+    model.add(Conv2d(512, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    model.add(Pooling(width=2, height=2, stride=1, pool='max'))
+    # conv7 13
+    model.add(Conv2d(1024, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv8 13
+    model.add(Conv2d(512, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+
+    model.add(
+        Conv2d((n_classes + 5) * predictionsPerGrid, width=1, act='identity', includeBias=False, stride=1))
+
+    model.add(DetectionLayer(detectionModelType='yolov2', classNumber=n_classes, gridNumber=gridNumber,
+                             predictionsPerGrid=predictionsPerGrid, **kwargs))
+
+    return model
+
+
+def Tiny_Yolov1(conn, model_name='Tiny-Yolov1', n_channels=3, width=448, height=448, scale=1.0 / 255,
+                randomMutation='random', dropout=0,
+                n_classes=10, predictionsPerGrid=2, gridNumber=7, **kwargs):
+    '''
+      Function to generate a deep learning model with Tiny Yolov1 architecture.
+
+      Parameters:
+
+      ----------
+      conn :
+          Specifies the connection of the CAS connection.
+      model_name : string
+          Specifies the name of CAS table to store the model.
+      n_classes : int, optional.
+          Specifies the number of classes. If None is assigned, the model will automatically detect the number of
+          classes based on the training set.
+          Default: None
+      predictionsPerGrid: int, optional.
+      		Specifies the number of bounding boxes per grid.
+      		Default : 2
+      gridNumber: int, optional.
+      		Specifies the number of grids the images divided into
+      n_channels : double, optional.
+          Specifies the number of the channels of the input layer.
+          Default : 3.
+      width : double, optional.
+          Specifies the width of the input layer.
+          Default : 416.
+      height : double, optional.
+          Specifies the height of the input layer.
+          Default : 416.
+      scale : double, optional.
+          Specifies a scaling factor to apply to each image..
+          Default : 1.0/255.
+
+      Returns
+      -------
+      A model object using DenseNet_Cifar architecture.
+
+      '''
+
+    model = Sequential(conn=conn, model_name=model_name)
+
+    model.add(InputLayer(n_channels=n_channels, width=width, height=height, randomMutation=randomMutation,
+                         scale=scale))
+    # conv1 416 448
+    model.add(Conv2d(16, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act='leaky'))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv2 208 224
+    model.add(Conv2d(32, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act='leaky'))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv3 104 112
+    model.add(Conv2d(64, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act='leaky'))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv4 52 56
+    model.add(Conv2d(128, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act='leaky'))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv5 26 28
+    model.add(Conv2d(256, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act='leaky'))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv6 13 14
+    model.add(Conv2d(512, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act='leaky'))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv7 12 7
+    model.add(Conv2d(1024, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act='leaky'))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv8 6
+    model.add(Conv2d(256, width=3, act='identity', includeBias=False, stride=1, dropout=dropout))
+    model.add(BN(act='leaky'))
+
+    model.add(Dense(n=(n_classes + (5 * predictionsPerGrid)) * gridNumber * gridNumber, act='identity'))
+
+    model.add(DetectionLayer(detectionModelType='yolov1', classNumber=n_classes, gridNumber=gridNumber,
+                             predictionsPerGrid=predictionsPerGrid,
+                             **kwargs))
+
+    return model
+
+
+def Tiny_Yolov1_SAS(conn, model_name='Tiny-Yolov1', n_channels=3, width=448, height=448, scale=1.0 / 255,
+                    randomMutation='random',
+                    dropout=0, detAct='identity',
+                    n_classes=10, predictionsPerGrid=2, gridNumber=7, **kwargs):
+    model = Sequential(conn=conn, model_name=model_name)
+
+    model.add(InputLayer(n_channels=n_channels, width=width, height=height, scale=scale,
+                         randomMutation=randomMutation))
+
+    # conv1 416 448
+    model.add(Conv2d(16, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act='leaky'))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv2 208 224
+    model.add(Conv2d(32, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act='leaky'))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv3 104 112
+    model.add(Conv2d(64, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act='leaky'))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv4 52 56
+    model.add(Conv2d(128, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act='leaky'))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv5 26 28
+    model.add(Conv2d(256, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act='leaky'))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv6 13 14
+    model.add(Conv2d(512, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act='leaky'))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv7 12 7
+    model.add(Conv2d(1024, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act='leaky'))
+    # conv8 7
+    model.add(Conv2d(256, width=3, act='identity', includeBias=False, stride=1, dropout=dropout))
+    model.add(BN(act='leaky'))
+    # fc1
+    # model.add(Dense(n = 4096, act = 'leaky', dropout = dropout))
+    model.add(Dense(n=(n_classes + (5 * predictionsPerGrid)) * gridNumber * gridNumber, act=detAct))
+
+    model.add(DetectionLayer(detectionModelType='yolov1', classNumber=n_classes, gridNumber=gridNumber,
+                             predictionsPerGrid=predictionsPerGrid,
+                             **kwargs))
+    return model
+
+
+def Darknet_SAS(conn, model_name='Darknet', n_classes=1000, actx='leaky',
+                n_channels=3, width=224, height=224, scale=1.0 / 255,
+                random_flip='H', random_crop='UNIQUE'):
+    '''
+      Function to generate a deep learning model with Darknet architecture.
+
+      Parameters:
+
+      ----------
+      conn :
+          Specifies the connection of the CAS connection.
+      model_name : string
+          Specifies the name of CAS table to store the model.
+      n_classes : int, optional.
+          Specifies the number of classes. If None is assigned, the model will automatically detect the number of
+          classes based on the training set.
+          Default: None
+      conv_channel: int, optional.
+      		Specifies the number of filters of first convolutional layer.
+      		Default : 16
+      growth_rate: int, optional.
+      		Specifies growth rate of convolutional layer.
+      		Default : 12
+      n_blocks : int, optional.
+      		Specifies the number of DenseNetBlocks.
+      		Default : 4
+      n_cells : int, optional.
+      		Specifies the number of densely connection in each DenseNetBlock
+      		Default : 4
+      n_channels : double, optional.
+          Specifies the number of the channels of the input layer.
+          Default : 3.
+      width : double, optional.
+          Specifies the width of the input layer.
+          Default : 224.
+      height : double, optional.
+          Specifies the height of the input layer.
+          Default : 224.
+      scale : double, optional.
+          Specifies a scaling factor to apply to each image..
+          Default : 1.
+      random_flip : string, "H" | "HV" | "NONE" | "V"
+          Specifies how to flip the data in the input layer when image data is used. Approximately half of the input data
+          is subject to flipping.
+          Default	: "HV"
+      random_crop : string, "NONE" or "UNIQUE"
+          Specifies how to crop the data in the input layer when image data is used. Images are cropped to the values that
+           are specified in the width and height parameters. Only the images with one or both dimensions that are larger
+           than those sizes are cropped.
+          Default	: "UNIQUE"
+      offsets=(double-1 <, double-2, ...>), optional
+          Specifies an offset for each channel in the input data. The final input data is set after applying scaling and
+          subtracting the specified offsets.
+      Default : (85, 111, 139)
+
+      Returns
+      -------
+      A model object using DarkNet architecture.
+
+      '''
+
+    model = Sequential(conn=conn, model_name=model_name)
+
+    model.add(InputLayer(n_channels=n_channels, width=width, height=height,
+                         scale=scale, random_flip=random_flip,
+                         random_crop=random_crop))
+    # conv1 224
+    model.add(Conv2d(64, width=7, act='identity', includeBias=False, stride=2))
+    model.add(BN(act=actx))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv2 56
+    model.add(Conv2d(192, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv3 28
+    model.add(Conv2d(128, width=1, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv4 28
+    model.add(Conv2d(256, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv5 28
+    model.add(Conv2d(256, width=1, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv6 28
+    model.add(Conv2d(512, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv7 14
+    model.add(Conv2d(256, width=1, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv8 14
+    model.add(Conv2d(512, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv9 14
+    model.add(Conv2d(256, width=1, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv10 14
+    model.add(Conv2d(512, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv11 14
+    model.add(Conv2d(256, width=1, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv12 14
+    model.add(Conv2d(512, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv13 14
+    model.add(Conv2d(256, width=1, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv14 14
+    model.add(Conv2d(512, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv15 14
+    model.add(Conv2d(512, width=1, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv16 14
+    model.add(Conv2d(1024, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv17 7
+    model.add(Conv2d(512, width=1, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv18 7
+    model.add(Conv2d(1024, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv19 7
+    model.add(Conv2d(1000, width=1, act=actx, includeBias=True, stride=1))
+    # model.add(BN(act = actx))
+
+    model.add(Pooling(width=7, height=7, pool='mean'))
+    model.add(OutputLayer(act='softmax', n=n_classes))
+    return model
+
+
+def Yolov1BN_SAS(conn, model_name='Yolov1BN', n_channels=3, width=448, height=448, scale=1.0 / 255,
+                 n_classes=10, randomMutation='random',
+                 detAct='identity', actx='leaky', dropout=0,
+                 predictionsPerGrid=2, gridNumber=7, **kwargs):
+    model = Sequential(conn=conn, model_name=model_name)
+
+    model.add(InputLayer(n_channels=n_channels, width=width, height=height, randomMutation=randomMutation,
+                         scale=scale))
+    # conv1 448
+    model.add(Conv2d(64, width=7, act='identity', includeBias=False, stride=2))
+    model.add(BN(act=actx))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv2 112
+    model.add(Conv2d(192, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv3 56
+    model.add(Conv2d(128, width=1, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv4 56
+    model.add(Conv2d(256, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv5 56
+    model.add(Conv2d(256, width=1, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv6 56
+    model.add(Conv2d(512, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv7 28
+    model.add(Conv2d(256, width=1, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv8 28
+    model.add(Conv2d(512, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv9 28
+    model.add(Conv2d(256, width=1, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv10 28
+    model.add(Conv2d(512, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv11 28
+    model.add(Conv2d(256, width=1, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv12 28
+    model.add(Conv2d(512, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv13 28
+    model.add(Conv2d(256, width=1, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv14 28
+    model.add(Conv2d(512, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv15 28
+    model.add(Conv2d(512, width=1, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv16 28
+    model.add(Conv2d(1024, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    model.add(Pooling(width=2, height=2, stride=2, pool='max'))
+    # conv17 14
+    model.add(Conv2d(512, width=1, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv18 14
+    model.add(Conv2d(1024, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv19 14
+    model.add(Conv2d(512, width=1, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv20 14
+    model.add(Conv2d(1024, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv21 14
+    model.add(Conv2d(1024, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv22 14
+    model.add(Conv2d(1024, width=3, act='identity', includeBias=False, stride=2))
+    model.add(BN(act=actx))
+    # conv23 7
+    model.add(Conv2d(1024, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv24 7
+    model.add(Conv2d(1024, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv24 7
+    model.add(Conv2d(256, width=3, act='identity', includeBias=False, stride=1))
+    model.add(BN(act=actx))
+    # conv25 7
+    model.add(
+        Conv2d(n_classes + (5 * predictionsPerGrid), width=1, act='identity', includeBias=False, stride=1))
+
+    # model.add(Dense(n = 4096, act = actx, dropout = dropout))
+    model.add(Dense(n=(n_classes + (5 * predictionsPerGrid)) * gridNumber * gridNumber, act=detAct))
+    model.add(DetectionLayer(detectionModelType='yolov1', classNumber=n_classes, gridNumber=gridNumber,
+                             predictionsPerGrid=predictionsPerGrid,
+                             **kwargs))
     return model
