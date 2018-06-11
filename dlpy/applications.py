@@ -1524,7 +1524,7 @@ def ResNet34_Caffe(conn, model_table='RESNET34_CAFFE', batch_norm_first=False,
     return model
 
 
-def ResNet50(conn, model_name='RESNET50_SAS', batch_norm_first=True,
+def ResNet50(conn, model_table='RESNET50_SAS', batch_norm_first=True,
                  n_classes=1000, n_channels=3, width=224, height=224, scale=1,
                  random_flip='none', random_crop='none',
                  offsets=(103.939, 116.779, 123.68)):
@@ -1535,7 +1535,7 @@ def ResNet50(conn, model_name='RESNET50_SAS', batch_norm_first=True,
     ----------
     conn : CAS
         Specifies the CAS connection object
-    model_name : string, optional
+    model_table: string, optional
         Specifies the name of CAS table to store the model in
     batch_norm_first : boolean, optional
         Specifies whether to have batch normalization layer before the
@@ -1585,7 +1585,7 @@ def ResNet50(conn, model_name='RESNET50_SAS', batch_norm_first=True,
     '''
     conn.retrieve('loadactionset', _messagelevel='error', actionset='deeplearn')
 
-    model = Sequential(conn=conn, model_name=model_name)
+    model = Sequential(conn=conn, model_table=model_table)
 
     model.add(InputLayer(n_channels=n_channels, width=width, height=height,
                          scale=scale, offsets=offsets, random_flip=random_flip,
@@ -1623,7 +1623,7 @@ def ResNet50(conn, model_name='RESNET50_SAS', batch_norm_first=True,
     return model
 
 
-def ResNet50_SAS(conn, model_name='RESNET50_SAS', batch_norm_first=True,
+def ResNet50_SAS(conn, model_table='RESNET50_SAS', batch_norm_first=True,
                  n_classes=1000, n_channels=3, width=224, height=224, scale=1,
                  random_flip='none', random_crop='none',
                  offsets=(103.939, 116.779, 123.68)):
@@ -2617,7 +2617,7 @@ def DenseNet_Cifar(conn, model_table='DenseNet_Cifar', n_classes=None, conv_chan
     return model
 
 
-def DenseNet121(conn, model_name='DENSENET121', n_classes=1000, conv_channel=64, growth_rate=32,
+def DenseNet121(conn, model_table='DENSENET121', n_classes=1000, conv_channel=64, growth_rate=32,
                 n_cells=[6, 12, 24, 16], n_channels=3,
                 reduction=0.5,
                 width=224, height=224, scale=1,
@@ -2629,7 +2629,7 @@ def DenseNet121(conn, model_name='DENSENET121', n_classes=1000, conv_channel=64,
     ----------
     conn :
         Specifies the connection of the CAS connection.
-    model_name : string
+    model_table : string
         Specifies the name of CAS table to store the model.
     n_classes : int, optional.
         Specifies the number of classes. If None is assigned, the model will
@@ -2679,7 +2679,7 @@ def DenseNet121(conn, model_name='DENSENET121', n_classes=1000, conv_channel=64,
     '''
     n_blocks = len(n_cells)
 
-    model = Sequential(conn=conn, model_name=model_name)
+    model = Sequential(conn=conn, model_table=model_table)
 
     model.add(InputLayer(n_channels=n_channels, width=width, height=height,  # TODO
                          scale=scale, random_flip=random_flip, offsets=offsets,
@@ -2734,7 +2734,7 @@ def DenseNet121(conn, model_name='DENSENET121', n_classes=1000, conv_channel=64,
 '''Below are Object detection feature'''
 
 
-def Darknet_Reference(conn, model_name='Darknet_Reference', n_classes=1000, actx='leaky',
+def Darknet_Reference(conn, model_table='Darknet_Reference', n_classes=1000, actx='leaky',
                       n_channels=3, width=224, height=224, scale=1.0 / 255,
                       random_flip='H', random_crop='UNIQUE'):
     '''
@@ -2745,7 +2745,7 @@ def Darknet_Reference(conn, model_name='Darknet_Reference', n_classes=1000, actx
       ----------
       conn :
           Specifies the connection of the CAS connection.
-      model_name : string
+      model_table : string
           Specifies the name of CAS table to store the model.
       n_classes : int, optional.
           Specifies the number of classes. If None is assigned, the model will automatically detect the number of
@@ -2795,7 +2795,7 @@ def Darknet_Reference(conn, model_name='Darknet_Reference', n_classes=1000, actx
 
       '''
 
-    model = Sequential(conn=conn, model_name=model_name)
+    model = Sequential(conn=conn, model_table=model_table)
 
     model.add(InputLayer(n_channels=n_channels, width=width, height=height,
                          scale=scale, random_flip=random_flip,
@@ -2836,7 +2836,7 @@ def Darknet_Reference(conn, model_name='Darknet_Reference', n_classes=1000, actx
     return model
 
 
-def Darknet(conn, model_name='Darknet', n_classes=1000, actx='leaky',
+def Darknet(conn, model_table='Darknet', n_classes=1000, actx='leaky',
             n_channels=3, width=224, height=224, scale=1.0 / 255,
             random_flip='H', random_crop='UNIQUE'):
     '''
@@ -2847,7 +2847,7 @@ def Darknet(conn, model_name='Darknet', n_classes=1000, actx='leaky',
       ----------
       conn :
           Specifies the connection of the CAS connection.
-      model_name : string
+      model_table : string
           Specifies the name of CAS table to store the model.
       n_classes : int, optional.
           Specifies the number of classes. If None is assigned, the model will automatically detect the number of
@@ -2897,7 +2897,7 @@ def Darknet(conn, model_name='Darknet', n_classes=1000, actx='leaky',
 
       '''
 
-    model = Sequential(conn=conn, model_name=model_name)
+    model = Sequential(conn=conn, model_table=model_table)
 
     model.add(InputLayer(n_channels=n_channels, width=width, height=height,
                          scale=scale, random_flip=random_flip,
@@ -2970,7 +2970,7 @@ def Darknet(conn, model_name='Darknet', n_classes=1000, actx='leaky',
     return model
 
 
-def YoloV1BN(conn, model_name='Yolov1BN', n_channels=3, width=448, height=448, scale=1.0 / 255,
+def YoloV1BN(conn, model_table='Yolov1BN', n_channels=3, width=448, height=448, scale=1.0 / 255,
              n_classes=10, randomMutation='random',
              detAct='identity', actx='leaky', dropout=0,
              predictionsPerGrid=2, gridNumber=7, **kwargs):
@@ -2982,7 +2982,7 @@ def YoloV1BN(conn, model_name='Yolov1BN', n_channels=3, width=448, height=448, s
       ----------
       conn :
           Specifies the connection of the CAS connection.
-      model_name : string
+      model_table : string
           Specifies the name of CAS table to store the model.
       n_classes : int, optional.
           Specifies the number of classes. If None is assigned, the model will automatically detect the number of
@@ -3032,7 +3032,7 @@ def YoloV1BN(conn, model_name='Yolov1BN', n_channels=3, width=448, height=448, s
 
       '''
 
-    model = Sequential(conn=conn, model_name=model_name)
+    model = Sequential(conn=conn, model_table=model_table)
 
     model.add(InputLayer(n_channels=n_channels, width=width, height=height, randomMutation=randomMutation,
                          scale=scale))
@@ -3121,7 +3121,7 @@ def YoloV1BN(conn, model_name='Yolov1BN', n_channels=3, width=448, height=448, s
     return model
 
 
-def Yolov2(conn, model_name='Yolov2', n_channels=3, width=416, height=416, scale=1.0 / 255,
+def Yolov2(conn, model_table='Yolov2', n_channels=3, width=416, height=416, scale=1.0 / 255,
            actx='leaky',
            randomMutation='random',
            n_classes=20, predictionsPerGrid=5, gridNumber=13, **kwargs):
@@ -3133,7 +3133,7 @@ def Yolov2(conn, model_name='Yolov2', n_channels=3, width=416, height=416, scale
       ----------
       conn :
           Specifies the connection of the CAS connection.
-      model_name : string
+      model_table : string
           Specifies the name of CAS table to store the model.
       n_classes : int, optional.
           Specifies the number of classes. If None is assigned, the model will automatically detect the number of
@@ -3163,7 +3163,7 @@ def Yolov2(conn, model_name='Yolov2', n_channels=3, width=416, height=416, scale
 
       '''
 
-    model = Sequential(conn=conn, model_name=model_name)
+    model = Sequential(conn=conn, model_table=model_table)
 
     model.add(InputLayer(n_channels=n_channels, width=width, height=height, randomMutation=randomMutation,
                          scale=scale))
@@ -3237,7 +3237,7 @@ def Yolov2(conn, model_name='Yolov2', n_channels=3, width=416, height=416, scale
     return model
 
 
-def Yolov2MultiSize(conn, model_name='Yolov2', n_channels=3, width=416, height=416, scale=1.0 / 255,
+def Yolov2MultiSize(conn, model_table='Yolov2', n_channels=3, width=416, height=416, scale=1.0 / 255,
                     actx='leaky',
                     randomMutation='random',
                     n_classes=20, predictionsPerGrid=5, gridNumber=13, **kwargs):
@@ -3249,7 +3249,7 @@ def Yolov2MultiSize(conn, model_name='Yolov2', n_channels=3, width=416, height=4
       ----------
       conn :
           Specifies the connection of the CAS connection.
-      model_name : string
+      model_table : string
           Specifies the name of CAS table to store the model.
       n_classes : int, optional.
           Specifies the number of classes. If None is assigned, the model will automatically detect the number of
@@ -3279,7 +3279,7 @@ def Yolov2MultiSize(conn, model_name='Yolov2', n_channels=3, width=416, height=4
 
       '''
 
-    model = Sequential(conn=conn, model_name=model_name)
+    model = Sequential(conn=conn, model_table=model_table)
 
     model.add(InputLayer(n_channels=n_channels, width=width, height=height, randomMutation=randomMutation,
                          scale=scale))
@@ -3376,7 +3376,7 @@ def Yolov2MultiSize(conn, model_name='Yolov2', n_channels=3, width=416, height=4
     return model
 
 
-def Tiny_Yolov2(conn, model_name='Tiny-Yolov2', n_channels=3, width=416, height=416, scale=1.0 / 255,
+def Tiny_Yolov2(conn, model_table='Tiny-Yolov2', n_channels=3, width=416, height=416, scale=1.0 / 255,
                 actx='leaky',
                 randomMutation='random',
                 n_classes=20, predictionsPerGrid=5, gridNumber=13, **kwargs):
@@ -3388,17 +3388,18 @@ def Tiny_Yolov2(conn, model_name='Tiny-Yolov2', n_channels=3, width=416, height=
       ----------
       conn :
           Specifies the connection of the CAS connection.
-      model_name : string
+      model_table : string
           Specifies the name of CAS table to store the model.
       n_classes : int, optional.
           Specifies the number of classes. If None is assigned, the model will automatically detect the number of
           classes based on the training set.
           Default: None
       predictionsPerGrid: int, optional.
-      		Specifies the number of bounding boxes per grid.
-      		Default : 2
+          Specifies the number of bounding boxes per grid.
+          Default : 2
       gridNumber: int, optional.
-      		Specifies the number of grids the images divided into
+          Specifies the number of grids the images divided into
+          Default : 13
       n_channels : double, optional.
           Specifies the number of the channels of the input layer.
           Default : 3.
@@ -3418,7 +3419,7 @@ def Tiny_Yolov2(conn, model_name='Tiny-Yolov2', n_channels=3, width=416, height=
 
       '''
 
-    model = Sequential(conn=conn, model_name=model_name)
+    model = Sequential(conn=conn, model_table=model_table)
 
     model.add(InputLayer(n_channels=n_channels, width=width, height=height, randomMutation=randomMutation,
                          scale=scale))
@@ -3462,7 +3463,7 @@ def Tiny_Yolov2(conn, model_name='Tiny-Yolov2', n_channels=3, width=416, height=
     return model
 
 
-def Tiny_Yolov1(conn, model_name='Tiny-Yolov1', n_channels=3, width=448, height=448, scale=1.0 / 255,
+def Tiny_Yolov1(conn, model_table='Tiny-Yolov1', n_channels=3, width=448, height=448, scale=1.0 / 255,
                 randomMutation='random', dropout=0,
                 n_classes=10, predictionsPerGrid=2, gridNumber=7, **kwargs):
     '''
@@ -3473,7 +3474,7 @@ def Tiny_Yolov1(conn, model_name='Tiny-Yolov1', n_channels=3, width=448, height=
       ----------
       conn :
           Specifies the connection of the CAS connection.
-      model_name : string
+      model_table : string
           Specifies the name of CAS table to store the model.
       n_classes : int, optional.
           Specifies the number of classes. If None is assigned, the model will automatically detect the number of
@@ -3503,7 +3504,7 @@ def Tiny_Yolov1(conn, model_name='Tiny-Yolov1', n_channels=3, width=448, height=
 
       '''
 
-    model = Sequential(conn=conn, model_name=model_name)
+    model = Sequential(conn=conn, model_table=model_table)
 
     model.add(InputLayer(n_channels=n_channels, width=width, height=height, randomMutation=randomMutation,
                          scale=scale))
@@ -3548,11 +3549,11 @@ def Tiny_Yolov1(conn, model_name='Tiny-Yolov1', n_channels=3, width=448, height=
     return model
 
 
-def Tiny_Yolov1_SAS(conn, model_name='Tiny-Yolov1', n_channels=3, width=448, height=448, scale=1.0 / 255,
+def Tiny_Yolov1_SAS(conn, model_table='Tiny-Yolov1', n_channels=3, width=448, height=448, scale=1.0 / 255,
                     randomMutation='random',
                     dropout=0, detAct='identity',
                     n_classes=10, predictionsPerGrid=2, gridNumber=7, **kwargs):
-    model = Sequential(conn=conn, model_name=model_name)
+    model = Sequential(conn=conn, model_table=model_table)
 
     model.add(InputLayer(n_channels=n_channels, width=width, height=height, scale=scale,
                          randomMutation=randomMutation))
@@ -3597,7 +3598,7 @@ def Tiny_Yolov1_SAS(conn, model_name='Tiny-Yolov1', n_channels=3, width=448, hei
     return model
 
 
-def Darknet_SAS(conn, model_name='Darknet', n_classes=1000, actx='leaky',
+def Darknet_SAS(conn, model_table='Darknet', n_classes=1000, actx='leaky',
                 n_channels=3, width=224, height=224, scale=1.0 / 255,
                 random_flip='H', random_crop='UNIQUE'):
     '''
@@ -3608,7 +3609,7 @@ def Darknet_SAS(conn, model_name='Darknet', n_classes=1000, actx='leaky',
       ----------
       conn :
           Specifies the connection of the CAS connection.
-      model_name : string
+      model_table : string
           Specifies the name of CAS table to store the model.
       n_classes : int, optional.
           Specifies the number of classes. If None is assigned, the model will automatically detect the number of
@@ -3658,7 +3659,7 @@ def Darknet_SAS(conn, model_name='Darknet', n_classes=1000, actx='leaky',
 
       '''
 
-    model = Sequential(conn=conn, model_name=model_name)
+    model = Sequential(conn=conn, model_table=model_table)
 
     model.add(InputLayer(n_channels=n_channels, width=width, height=height,
                          scale=scale, random_flip=random_flip,
@@ -3730,11 +3731,11 @@ def Darknet_SAS(conn, model_name='Darknet', n_classes=1000, actx='leaky',
     return model
 
 
-def Yolov1BN_SAS(conn, model_name='Yolov1BN', n_channels=3, width=448, height=448, scale=1.0 / 255,
+def Yolov1BN_SAS(conn, model_table='Yolov1BN', n_channels=3, width=448, height=448, scale=1.0 / 255,
                  n_classes=10, randomMutation='random',
                  detAct='identity', actx='leaky', dropout=0,
                  predictionsPerGrid=2, gridNumber=7, **kwargs):
-    model = Sequential(conn=conn, model_name=model_name)
+    model = Sequential(conn=conn, model_table=model_table)
 
     model.add(InputLayer(n_channels=n_channels, width=width, height=height, randomMutation=randomMutation,
                          scale=scale))

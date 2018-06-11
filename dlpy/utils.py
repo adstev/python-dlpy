@@ -321,3 +321,106 @@ def check_caslib(conn, path):
         return True, caslibname
     else:
         return False
+
+class Box():
+    def __init__(self, x, y, w, h):
+        self.x = x
+        self.y = y
+        self.w = w
+        self.h = h
+
+def box_iou(a, b):
+    return box_intersection(a, b) / box_union(a, b)
+
+def overlap(x1, len1, x2, len2):
+    len1_half = len1/2
+    len2_half = len2/2
+
+    left = max(x1 - len1_half, x2 - len2_half)
+    right = min(x1 + len1_half, x2 + len2_half)
+
+    return right - left
+
+def box_intersection(a, b):
+    w = overlap(a.x, a.w, b.x, b.w)
+    h = overlap(a.y, a.h, b.y, b.h)
+    if w < 0 or h < 0:
+        return 0
+
+    area = w * h
+    return area
+
+def box_union(a, b):
+    i = box_intersection(a, b)
+    u = a.w * a.h + b.w * b.h - i
+    return u
+
+# do k-means
+def do_kmeans( boxes, centroids, n_anchors = 5):
+
+    loss = 0
+    groups = []
+    new_centroids = []
+    for i in range(n_anchors):
+        groups.append([])
+        new_centroids.append(Box(0, 0, 0, 0))
+    for box in boxes:
+        min_distance = 1
+        group_index = 0
+        for centroid_index, centroid in enumerate(centroids):
+            distance = (1 - box_iou(box, centroid))
+            if distance < min_distance:
+                min_distance = distance
+                group_index = centroid_index
+        groups[group_index].append(box)
+        loss += min_distance
+        new_centroids[group_index].w += box.w
+        new_centroids[group_index].h += box.h
+
+    for i in range(n_anchors):
+        new_centroids[i].w /= len(groups[i])
+        new_centroids[i].h /= len(groups[i])
+
+    return new_centroids, groups, loss
+
+def get_anchors(casTable, coordType, grid_size = 13, n_anchors = 5, loss_convergence = 1e-5):
+    # reading all of boxes
+    boxes = []
+    df = casTable.to_frame()
+    for idx, row in df.iterrows():
+        n_object = int(row['_nObjects_'])
+        for i in range(n_object):
+            if coordType.lower() == 'yolo':
+                width = float(row['_Object{}_width'.format(i)])
+                height = float(row['_Object{}_height'.format(i)])
+            elif coordType.lower() == 'rect':
+                try:
+                    img_width = int(row['_width_'])
+                    img_height = int(row['_height_'])
+                except:
+                    print('Error: _width_ and _height_ columns should be in the table')
+                    return
+                width = float(row['_Object{}_width'.format(i)] / img_width)
+                height = float(row['_Object{}_height'.format(i)] / img_height)
+            else:
+                print('Error: Only support Yolo and Rect coordType by far')
+                return
+            boxes.append(Box(0, 0, width, height))
+    # initial centroids
+    centroid_indices = np.random.choice(len(boxes), n_anchors)
+    centroids = []
+    for centroid_index in centroid_indices:
+        centroids.append(boxes[centroid_index])
+
+    # iterate k-means
+    new_centroids, groups, old_loss = do_kmeans(boxes, centroids, n_anchors)
+
+    while(True):
+        new_centroids, groups, loss = do_kmeans(boxes, new_centroids, n_anchors)
+        if abs(old_loss - loss) < loss_convergence:
+            break
+        old_loss = loss
+    anchors = []
+    for centroid in centroids:
+        anchors += [centroid.w * grid_size, centroid.h * grid_size]
+    return tuple(anchors)

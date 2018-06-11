@@ -703,18 +703,18 @@ class Model(object):
         max_epochs = optimizer['maxepochs']
 
 
-        if 'targetSeq' not in kwargs:
+        if 'dataspecs' not in kwargs:
             train_options = dict(model = self.model_table, table = input_tbl_opts,
-                                 inputs = inputs,
-                                 target = target,
-                                 modelWeights = dict(replace = True, **self.model_weights.to_table_params()),
-                                 optimizer = optimizer,
+                                 inputs=inputs,
+                                 target=target,
+                                 modelWeights=dict(replace = True, **self.model_weights.to_table_params()),
+                                 optimizer=optimizer,
                                  **kwargs)
         else:
-            train_options = dict(model = self.model_table, table = input_tbl_opts,
-                                 inputs = inputs,
-                                 modelWeights = dict(replace = True, **self.model_weights.to_table_params()),
-                                 optimizer = optimizer,
+            train_options = dict(model=self.model_table, table = input_tbl_opts,
+                                 inputs=inputs,
+                                 modelWeights=dict(replace = True, **self.model_weights.to_table_params()),
+                                 optimizer=optimizer,
                                  **kwargs)
 
         train_options = unify_keys(train_options)
@@ -724,15 +724,24 @@ class Model(object):
         except:
             pass
 
-        if self.model_weights.to_table_params()['name'].upper() in \
-                list(self._retrieve_('table.tableinfo').TableInfo.Name):
+        # if self.model_weights.to_table_params()['name'].upper() in \
+        #         list(self._retrieve_('table.tableinfo').TableInfo.Name):
+        #     print('NOTE: Training based on existing weights.')
+        #     train_options['initWeights'] = self.model_weights
+        # elif 'initweights' in kwargs:
+        #     print('NOTE: Training based on user defined initial weights.')
+        #     train_options['initWeights'] = kwargs['initweights']
+        # else:
+        #     print('NOTE: Training from scratch.')
+
+        if 'initweights' in kwargs:
             print('NOTE: Training based on existing weights.')
-            train_options['initWeights'] = self.model_weights
-        elif 'initweights' in kwargs:
-            print('NOTE: Training based on user defined initial weights.')
-            train_options['initWeights'] = kwargs['initweights']
+        elif self.model_weights.to_table_params()['name'].upper() in \
+                list(self._retrieve_('tableinfo').TableInfo.Name):
+            print('NOTE : Training based on existing weights.')
+            train_options['initWeights']=self.model_weights
         else:
-            print('NOTE: Training from scratch.')
+            print('NOTE : Training from scratch.')
 
         r = self._retrieve_('deeplearn.dltrain', message_level='note', **train_options)
 
