@@ -724,15 +724,6 @@ class Model(object):
         except:
             pass
 
-        # if self.model_weights.to_table_params()['name'].upper() in \
-        #         list(self._retrieve_('table.tableinfo').TableInfo.Name):
-        #     print('NOTE: Training based on existing weights.')
-        #     train_options['initWeights'] = self.model_weights
-        # elif 'initweights' in kwargs:
-        #     print('NOTE: Training based on user defined initial weights.')
-        #     train_options['initWeights'] = kwargs['initweights']
-        # else:
-        #     print('NOTE: Training from scratch.')
 
         if 'initweights' in kwargs:
             print('NOTE: Training based on existing weights.')
