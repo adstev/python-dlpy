@@ -168,6 +168,8 @@ class Model(object):
             elif layertype == 9:
                 model.layers.append(extract_residual_layer(layer_table=layer_table))
             elif layertype == 10:
+                model.layers.append(extract_concatenate_layer(layer_table=layer_table))
+            elif layertype == 11:
                 model.layers.append(extract_detection_layer(layer_table = layer_table))
         conn_mat = model_table[['_DLNumVal_', '_DLLayerID_']][
             model_table['_DLKey1_'].str.contains('srclayers')].sort_values('_DLLayerID_')
@@ -366,6 +368,7 @@ class Model(object):
             layer_table = model_table[model_table['_DLLayerID_'] == layer_id]
             layertype = layer_table['_DLNumVal_'][layer_table['_DLKey1_'] ==
                                                   'layertype'].tolist()[0]
+            print('layertype is {}'.format(layertype))
             if layertype == 1:
                 self.layers.append(extract_input_layer(layer_table=layer_table))
             elif layertype == 2:
@@ -381,7 +384,11 @@ class Model(object):
             elif layertype == 9:
                 self.layers.append(extract_residual_layer(layer_table=layer_table))
             elif layertype == 10:
+                self.layers.append(extract_concatenate_layer(layer_table=layer_table))
+            elif layertype == 11:
                 self.layers.append(extract_detection_layer(layer_table=layer_table))
+            # elif layertype == 14:  # reshape
+
 
         conn_mat = model_table[['_DLNumVal_', '_DLLayerID_']][
             model_table['_DLKey1_'].str.contains('srclayers')].sort_values('_DLLayerID_')
@@ -835,6 +842,7 @@ class Model(object):
         input_tbl_opts = input_table_check(data)
         input_table = self.conn.CASTable(**input_tbl_opts)
         if target not in input_table.columninfo().ColumnInfo.Column.tolist():
+
             raise ValueError('Column name "{}" not found in the data table.'.format(target))
 
         if inputs not in input_table.columninfo().ColumnInfo.Column.tolist():

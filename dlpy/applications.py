@@ -3391,9 +3391,8 @@ def Tiny_Yolov2(conn, model_table='Tiny-Yolov2', n_channels=3, width=416, height
       model_table : string
           Specifies the name of CAS table to store the model.
       n_classes : int, optional.
-          Specifies the number of classes. If None is assigned, the model will automatically detect the number of
-          classes based on the training set.
-          Default: None
+          Specifies the number of classes.
+          Default: 20
       predictionsPerGrid: int, optional.
           Specifies the number of bounding boxes per grid.
           Default : 2

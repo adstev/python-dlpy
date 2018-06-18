@@ -812,3 +812,6 @@ class ImageTable(CASTable):
         uid = self[['_label_', file_name]].to_frame()
         # uid = uid.rename(columns={file_name: '_uid_'})
         return uid
+
+
+

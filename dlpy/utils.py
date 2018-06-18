@@ -386,7 +386,21 @@ def do_kmeans( boxes, centroids, n_anchors = 5):
 def get_anchors(casTable, coordType, grid_size = 13, n_anchors = 5, loss_convergence = 1e-5):
     # reading all of boxes
     boxes = []
-    df = casTable.to_frame()
+
+    # get only columns containing box width height and nObject info
+    keep_cols = []
+    for colName in casTable.columns:
+        if any(s in colName for s in ['width', 'height', '_nObjects_']):
+            keep_cols.append(colName)
+    anchor_tbl = casTable.retrieve('table.partition', _messagelevel='error',
+                            table=dict(Vars=keep_cols, **casTable.to_table_params()),
+                            casout=dict(name='anchor_tbl', replace=True, blocksize=32))['casTable']
+
+    # remove data points with no objects
+    anchor_tbl = anchor_tbl[~anchor_tbl['_nObjects_'].isNull()]
+
+    df = anchor_tbl.to_frame()
+    # df = df[~df['_nObjects_'].isnull()]
     for idx, row in df.iterrows():
         n_object = int(row['_nObjects_'])
         for i in range(n_object):
@@ -424,3 +438,32 @@ def get_anchors(casTable, coordType, grid_size = 13, n_anchors = 5, loss_converg
     for centroid in centroids:
         anchors += [centroid.w * grid_size, centroid.h * grid_size]
     return tuple(anchors)
+
+
+# def get_max_objects(conn, casTable):
+#     if isinstance(casTable, string):
+#         table = conn.CASTable(casTable)
+#     elif isinstance(casTable, CASTable):
+#         table = casTable
+#     else:
+#         raise ValueError('Input table not valid name or casTable')
+#     table = conn.CASTable(table)
+#     summary = table.summary()['Summary']
+#     return summary[summary['Column'] == '_nObjects_']['Max'].values[0]
+#
+#
+# def show_with_object_labels(conn, casTable, coordType='RECT', nimages=5, ncol=8, randomize=False, figsize=None):
+#     if isinstance(casTable, string):
+#         table = conn.CASTable(casTable)
+#     elif isinstance(casTable, CASTable):
+#         table = casTable
+#     else:
+#         raise ValueError('Input table not valid name or casTable')
+#
+#     conn._retrive_('image.extractDetectedObjects',
+#                    casout={'name': 'dataAnnotedresize', 'replace': True},
+#                    coordType=coordType, maxobjects=get_max_objects(table), table=table)
+#     # r = self.conn.image.fetchImages(table={'name': 'dataAnnotedresize'})
+#     # r.Images['Image'][0]
+#     from .images import ImageTable
+#     ImageTable.from_table('dataAnnotedresize').show(nimages, ncol, randomize, figsize)
