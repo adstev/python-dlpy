@@ -28,7 +28,7 @@ import warnings
 
 from .layers import InputLayer, Conv2d, Pooling, BN, Res, Concat, Dense, OutputLayer, DetectionLayer, Reshape
 from .utils import image_blocksize, unify_keys, input_table_check, random_name, check_caslib
-
+from .utils import filter_by_image_id, filter_by_filename
 
 class Model(object):
     '''
@@ -368,7 +368,7 @@ class Model(object):
             layer_table = model_table[model_table['_DLLayerID_'] == layer_id]
             layertype = layer_table['_DLNumVal_'][layer_table['_DLKey1_'] ==
                                                   'layertype'].tolist()[0]
-            print('layertype is {}'.format(layertype))
+            # print('layertype is {}'.format(layertype))
             if layertype == 1:
                 self.layers.append(extract_input_layer(layer_table=layer_table))
             elif layertype == 2:
@@ -1134,6 +1134,8 @@ class Model(object):
         elif data.shape[0] == 0:
             raise ValueError('Input table is empty.')
 
+        # create copy of table so can be dropped from caslib as needed
+        data = data.partition(casout=dict(name='temp_anotated', replace=True))['casTable']
 
         im_summary = data._retrieve('image.summarizeimages')['Summary']
         output_width = int(im_summary.minWidth)
@@ -1160,28 +1162,23 @@ class Model(object):
         masked_image_table = random_name('MASKED_IMG')
         blocksize = image_blocksize(output_width, output_height)
 
-        #   if image_id does not exist but filename does, create image_id from filename
-        if filename and image_id:
-            print(" image_id supersedes filename, image_id being used")
-        elif filename:
-            temp = data[data['_filename_0'].isin(filename)]
-            image_id = temp['_id_'].tolist()
-            if not image_id:
-                raise ValueError('filename: {} not found in table'.format(filename))
+        filtered = None
+        if filename or image_id:
+            print(" filtering by filename or _id_ ")
+            if '_id_' not in data.columns.tolist():
+                print("'_id_' column not in cas_table, processing complete table")
+            else:
+                if filename and image_id:
+                    print(" image_id supersedes filename, image_id being used")
 
+                if image_id:
+                    filtered = filter_by_image_id(data, image_id)
+                elif filename:
+                    filtered = filter_by_filename(data, filename)
 
-        # filter images by id number
-        if image_id:
-            data = data[data['_id_'].isin(image_id)]
-            if data.numrows().numrows == 0:
-                raise ValueError('image_id: {} not found in the table'.format(image_id))
-
-
-        # filter images by id number
-        if image_id:
-            data = data[data['_id_'].isin(image_id)]
-            if data.numrows().numrows == 0:
-                raise ValueError('image_id not found in the table')
+            if filtered:
+                self.conn.droptable(data)
+                data = filtered
 
         # if data was passed in, run predict, otherwise predict has been run using model.predict()
         if run_predict:
@@ -1390,6 +1387,9 @@ class Model(object):
                                     transform=axs[im_idx][0].transAxes)
 
             plt.show()
+
+        self.conn.droptable(data)
+
         return output_table
 
     def plot_heat_map(self, image_id=0, alpha=.2):

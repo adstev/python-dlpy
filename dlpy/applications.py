@@ -2752,17 +2752,17 @@ def Darknet_Reference(conn, model_table='Darknet_Reference', n_classes=1000, act
           classes based on the training set.
           Default: None
       conv_channel: int, optional.
-      		Specifies the number of filters of first convolutional layer.
-      		Default : 16
+            Specifies the number of filters of first convolutional layer.
+            Default : 16
       growth_rate: int, optional.
-      		Specifies growth rate of convolutional layer.
-      		Default : 12
+            Specifies growth rate of convolutional layer.
+            Default : 12
       n_blocks : int, optional.
-      		Specifies the number of DenseNetBlocks.
-      		Default : 4
+            Specifies the number of DenseNetBlocks.
+            Default : 4
       n_cells : int, optional.
-      		Specifies the number of densely connection in each DenseNetBlock
-      		Default : 4
+            Specifies the number of densely connection in each DenseNetBlock
+            Default : 4
       n_channels : double, optional.
           Specifies the number of the channels of the input layer.
           Default : 3.
@@ -2854,17 +2854,17 @@ def Darknet(conn, model_table='Darknet', n_classes=1000, actx='leaky',
           classes based on the training set.
           Default: None
       conv_channel: int, optional.
-      		Specifies the number of filters of first convolutional layer.
-      		Default : 16
+            Specifies the number of filters of first convolutional layer.
+            Default : 16
       growth_rate: int, optional.
-      		Specifies growth rate of convolutional layer.
-      		Default : 12
+            Specifies growth rate of convolutional layer.
+            Default : 12
       n_blocks : int, optional.
-      		Specifies the number of DenseNetBlocks.
-      		Default : 4
+            Specifies the number of DenseNetBlocks.
+            Default : 4
       n_cells : int, optional.
-      		Specifies the number of densely connection in each DenseNetBlock
-      		Default : 4
+            Specifies the number of densely connection in each DenseNetBlock
+            Default : 4
       n_channels : double, optional.
           Specifies the number of the channels of the input layer.
           Default : 3.
@@ -2989,17 +2989,17 @@ def YoloV1BN(conn, model_table='Yolov1BN', n_channels=3, width=448, height=448, 
           classes based on the training set.
           Default: None
       conv_channel: int, optional.
-      		Specifies the number of filters of first convolutional layer.
-      		Default : 16
+            Specifies the number of filters of first convolutional layer.
+            Default : 16
       growth_rate: int, optional.
-      		Specifies growth rate of convolutional layer.
-      		Default : 12
+            Specifies growth rate of convolutional layer.
+            Default : 12
       n_blocks : int, optional.
-      		Specifies the number of DenseNetBlocks.
-      		Default : 4
+            Specifies the number of DenseNetBlocks.
+            Default : 4
       n_cells : int, optional.
-      		Specifies the number of densely connection in each DenseNetBlock
-      		Default : 4
+            Specifies the number of densely connection in each DenseNetBlock
+            Default : 4
       n_channels : double, optional.
           Specifies the number of the channels of the input layer.
           Default : 3.
@@ -3140,10 +3140,10 @@ def Yolov2(conn, model_table='Yolov2', n_channels=3, width=416, height=416, scal
           classes based on the training set.
           Default: None
       predictionsPerGrid: int, optional.
-      		Specifies the number of bounding boxes per grid.
-      		Default : 2
+            Specifies the number of bounding boxes per grid.
+            Default : 2
       gridNumber: int, optional.
-      		Specifies the number of grids the images divided into
+            Specifies the number of grids the images divided into
       n_channels : double, optional.
           Specifies the number of the channels of the input layer.
           Default : 3.
@@ -3256,10 +3256,10 @@ def Yolov2MultiSize(conn, model_table='Yolov2', n_channels=3, width=416, height=
           classes based on the training set.
           Default: None
       predictionsPerGrid: int, optional.
-      		Specifies the number of bounding boxes per grid.
-      		Default : 2
+            Specifies the number of bounding boxes per grid.
+            Default : 2
       gridNumber: int, optional.
-      		Specifies the number of grids the images divided into
+            Specifies the number of grids the images divided into
       n_channels : double, optional.
           Specifies the number of the channels of the input layer.
           Default : 3.
@@ -3480,10 +3480,10 @@ def Tiny_Yolov1(conn, model_table='Tiny-Yolov1', n_channels=3, width=448, height
           classes based on the training set.
           Default: None
       predictionsPerGrid: int, optional.
-      		Specifies the number of bounding boxes per grid.
-      		Default : 2
+            Specifies the number of bounding boxes per grid.
+            Default : 2
       gridNumber: int, optional.
-      		Specifies the number of grids the images divided into
+            Specifies the number of grids the images divided into
       n_channels : double, optional.
           Specifies the number of the channels of the input layer.
           Default : 3.
@@ -3552,6 +3552,7 @@ def Tiny_Yolov1_SAS(conn, model_table='Tiny-Yolov1', n_channels=3, width=448, he
                     randomMutation='random',
                     dropout=0, detAct='identity',
                     n_classes=10, predictionsPerGrid=2, gridNumber=7, **kwargs):
+
     model = Sequential(conn=conn, model_table=model_table)
 
     model.add(InputLayer(n_channels=n_channels, width=width, height=height, scale=scale,
@@ -3615,17 +3616,17 @@ def Darknet_SAS(conn, model_table='Darknet', n_classes=1000, actx='leaky',
           classes based on the training set.
           Default: None
       conv_channel: int, optional.
-      		Specifies the number of filters of first convolutional layer.
-      		Default : 16
+            Specifies the number of filters of first convolutional layer.
+            Default : 16
       growth_rate: int, optional.
-      		Specifies growth rate of convolutional layer.
-      		Default : 12
+            Specifies growth rate of convolutional layer.
+            Default : 12
       n_blocks : int, optional.
-      		Specifies the number of DenseNetBlocks.
-      		Default : 4
+            Specifies the number of DenseNetBlocks.
+            Default : 4
       n_cells : int, optional.
-      		Specifies the number of densely connection in each DenseNetBlock
-      		Default : 4
+            Specifies the number of densely connection in each DenseNetBlock
+            Default : 4
       n_channels : double, optional.
           Specifies the number of the channels of the input layer.
           Default : 3.
